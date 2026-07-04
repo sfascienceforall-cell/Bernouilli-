@@ -1,0 +1,196 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#fff;font-family:system-ui,-apple-system,sans-serif;}
+canvas{display:block;border-radius:12px;border:1.5px solid #e8e8e8;touch-action:none;}
+.fml{font-size:13px;padding:10px 16px;border-radius:20px;background:#f5f5f5;border:1.5px solid #d0d0d0;color:#2c2c2a;margin:6px 0;font-family:ui-monospace,monospace;line-height:1.8;}
+.grp{display:flex;gap:18px;flex-wrap:wrap;}
+.col{flex:1;min-width:260px;}
+.tag{font-size:12px;font-weight:600;letter-spacing:.03em;margin:4px 2px;}
+.row{display:flex;align-items:center;gap:10px;margin:5px 0;flex-wrap:wrap;}
+.pill{font-size:12px;font-weight:500;color:#2c2c2a;background:#f5f5f5;border:1.5px solid #d0d0d0;border-radius:20px;padding:5px 12px;white-space:nowrap;min-width:112px;}
+.val{min-width:74px;text-align:center;font-size:12px;font-weight:500;color:#2c2c2a;background:#f5f5f5;border:1.5px solid #d0d0d0;border-radius:20px;padding:4px 8px;}
+.btn{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid #d0d0d0;background:#fff;color:#2c2c2a;}
+.btn.on{border-color:#185fa5;background:#e6f1fb;color:#185fa5;}
+.info{font-size:12px;padding:8px 14px;border-radius:20px;background:#f5f5f5;border:1.5px solid #d0d0d0;color:#555;margin:6px 0;font-family:ui-monospace,monospace;line-height:1.8;}
+input[type=range]{flex:1;min-width:90px;}
+</style>
+
+<canvas id="cv" style="width:100%;height:56vh;min-height:380px;"></canvas>
+
+<div class="fml">
+  <b style="color:#185fa5">P + ρgh + ½ρv² = constante</b> (le long d'une ligne de courant) &nbsp;|&nbsp; Continuité : <b style="color:#1D9E75">A₁v₁ = A₂v₂</b> &nbsp;|&nbsp; P₁ fixée = 50 kPa
+</div>
+
+<div class="grp">
+  <div class="col">
+    <div class="tag" style="color:#1D9E75;">● POINT A (entrée, en bas)</div>
+    <div class="row"><span class="pill" style="border-color:#9FE1CB;color:#1D9E75;">v₁ vitesse</span>
+      <input type="range" id="v1" min="1" max="8" value="2" step="0.25" style="accent-color:#1D9E75;">
+      <span class="val" id="v1v">2 m/s</span></div>
+    <div class="row"><span class="pill" style="border-color:#9FE1CB;color:#1D9E75;">A₁ section (r₁)</span>
+      <input type="range" id="r1" min="4" max="12" value="9" step="0.5" style="accent-color:#1D9E75;">
+      <span class="val" id="r1v">9 cm</span></div>
+    <div class="row"><span class="pill" style="border-color:#9FE1CB;color:#1D9E75;">h₁ hauteur</span>
+      <input type="range" id="h1" min="0" max="4" value="0.5" step="0.25" style="accent-color:#1D9E75;">
+      <span class="val" id="h1v">0.5 m</span></div>
+  </div>
+  <div class="col">
+    <div class="tag" style="color:#E24B4A;">● POINT B (sortie, en haut)</div>
+    <div class="row"><span class="pill" style="border-color:#f09595;color:#E24B4A;">A₂ section (r₂)</span>
+      <input type="range" id="r2" min="4" max="12" value="6" step="0.5" style="accent-color:#E24B4A;">
+      <span class="val" id="r2v">6 cm</span></div>
+    <div class="row"><span class="pill" style="border-color:#f09595;color:#E24B4A;">h₂ hauteur</span>
+      <input type="range" id="h2" min="0" max="4" value="3" step="0.25" style="accent-color:#E24B4A;">
+      <span class="val" id="h2v">3 m</span></div>
+    <div class="row"><button class="btn on" id="bP" onclick="paused=!paused;this.textContent=paused?'Lecture':'Pause';this.className=paused?'btn':'btn on';">Pause</button></div>
+  </div>
+</div>
+
+<div class="info" id="info"></div>
+
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const RED='#E24B4A',BLUE='#378ADD',BLUE_D='#185fa5',FLUID='#dcecfa',FLUID2='#9cc7ee',GREEN='#1D9E75',ORANGE='#D08717',GREY='#9aa0a6',AX='#c8ccd0';
+let W=0,H=0,dpr=1,paused=false;
+let v1=2,r1=9,h1=0.5,r2=6,h2=3;
+const rho=1000,g=9.81,P1=50000;
+let parts=[];
+
+function bind(id,fmt,f){const s=document.getElementById(id),o=document.getElementById(id+'v');
+  s.addEventListener('input',()=>{const v=parseFloat(s.value);f(v);o.textContent=fmt(v);});}
+bind('v1',v=>v+' m/s',v=>v1=v);
+bind('r1',v=>v+' cm',v=>r1=v);
+bind('h1',v=>v+' m',v=>h1=v);
+bind('r2',v=>v+' cm',v=>r2=v);
+bind('h2',v=>v+' m',v=>h2=v);
+
+function syncSize(){const r=cv.getBoundingClientRect();dpr=window.devicePixelRatio||1;
+  const nW=Math.round(r.width)||700,nH=Math.round(r.height)||400;
+  if(nW!==W||nH!==H){W=nW;H=nH;cv.width=W*dpr;cv.height=H*dpr;}
+  ctx.setTransform(dpr,0,0,dpr,0,0);}
+
+let P0,C1,C2,P3,rp1,rp2,datum,scaleH;
+function bez(u){const m=1-u;return{
+  x:m*m*m*P0.x+3*m*m*u*C1.x+3*m*u*u*C2.x+u*u*u*P3.x,
+  y:m*m*m*P0.y+3*m*m*u*C1.y+3*m*u*u*C2.y+u*u*u*P3.y};}
+function bezD(u){const m=1-u;return{
+  x:3*m*m*(C1.x-P0.x)+6*m*u*(C2.x-C1.x)+3*u*u*(P3.x-C2.x),
+  y:3*m*m*(C1.y-P0.y)+6*m*u*(C2.y-C1.y)+3*u*u*(P3.y-C2.y)};}
+function nrm(u){const d=bezD(u),l=Math.hypot(d.x,d.y)||1;return{x:-d.y/l,y:d.x/l};}
+function rpAt(u){return rp1+(rp2-rp1)*u;}
+function areaAt(u){const rr=(r1+(r2-r1)*u)/100;return Math.PI*rr*rr;}
+function vAt(u){const A1=Math.PI*(r1/100)**2;return v1*A1/areaAt(u);}
+
+function pipeFitting(p,rpx,lab,sub,col){
+  ctx.fillStyle='#d7dbdf';ctx.strokeStyle='#9aa0a6';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.ellipse(p.x,p.y,7,rpx,0,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle=col;ctx.font='700 15px system-ui';ctx.textAlign='center';
+  ctx.fillText(lab,p.x,p.y-rpx-8);
+  ctx.fillStyle=GREY;ctx.font='600 12px ui-monospace,monospace';
+  ctx.fillText(sub,p.x,p.y+rpx+16);
+}
+
+function draw(){
+  syncSize();
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+
+  const stripH=108; datum=H-stripH;
+  const topM=34, usable=datum-topM-34;
+  scaleH=usable/4;
+  const sc=2.5; rp1=r1*sc; rp2=r2*sc;
+  const xA=W*0.14, xB=W*0.85;
+  const yA=datum-h1*scaleH, yB=datum-h2*scaleH;
+  P0={x:xA,y:yA};P3={x:xB,y:yB};
+  C1={x:xA+0.45*(xB-xA),y:yA};
+  C2={x:xB-0.35*(xB-xA),y:yB};
+
+  // datum + label z=0 (centré, zone vide sous l'arc)
+  ctx.strokeStyle=AX;ctx.setLineDash([5,5]);ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(20,datum);ctx.lineTo(W-20,datum);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=GREY;ctx.font='600 12px system-ui';ctx.textAlign='center';
+  ctx.fillText('z = 0  (référence des hauteurs)',W*0.46,datum-8);
+
+  // hauteurs (dessinées seulement si > 0), labels bien à l'écart
+  function hArrow(x,y,col,lab,side){
+    if(datum-y<4)return;
+    ctx.strokeStyle=col;ctx.setLineDash([3,4]);ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(x,datum);ctx.lineTo(x,y);ctx.stroke();ctx.setLineDash([]);
+    // petites barres
+    ctx.beginPath();ctx.moveTo(x-4,datum);ctx.lineTo(x+4,datum);ctx.moveTo(x-4,y);ctx.lineTo(x+4,y);ctx.stroke();
+    ctx.fillStyle=col;ctx.font='700 13px system-ui';ctx.textAlign=side<0?'right':'left';
+    ctx.fillText(lab,x+side*9,(y+datum)/2+4);
+  }
+  hArrow(xA-rp1-18,yA,GREEN,'h₁',-1);
+  hArrow(xB+rp2+18,yB,RED,'h₂',1);
+
+  // bande de fluide
+  ctx.beginPath();
+  for(let i=0;i<=60;i++){const u=i/60,p=bez(u),n=nrm(u),w=rpAt(u);ctx.lineTo(p.x+n.x*w,p.y+n.y*w);}
+  for(let i=60;i>=0;i--){const u=i/60,p=bez(u),n=nrm(u),w=rpAt(u);ctx.lineTo(p.x-n.x*w,p.y-n.y*w);}
+  ctx.closePath();ctx.fillStyle=FLUID;ctx.fill();
+  ctx.strokeStyle='#8fb4d8';ctx.lineWidth=2;ctx.stroke();
+
+  // particules = POINTS
+  if(!paused){
+    if(parts.length<120&&Math.random()<0.9)parts.push({u:0,off:(Math.random()*2-1)*0.78});
+    parts.forEach(p=>p.u+=vAt(p.u)*0.0011);
+    parts=parts.filter(p=>p.u<1);
+  }
+  parts.forEach(p=>{
+    const c=bez(p.u),n=nrm(p.u),w=rpAt(p.u);
+    const x=c.x+n.x*p.off*w, y=c.y+n.y*p.off*w;
+    const v=vAt(p.u);
+    ctx.fillStyle=v>v1*1.25?GREEN:'#5f9fd6';
+    ctx.beginPath();ctx.arc(x,y,2.7,0,7);ctx.fill();
+  });
+
+  pipeFitting(P0,rp1,'A','P₁ , A₁',GREEN);
+  pipeFitting(P3,rp2,'B','P₂ , A₂',RED);
+
+  // physique
+  const A1=Math.PI*(r1/100)**2, A2=Math.PI*(r2/100)**2;
+  const v2=v1*A1/A2;
+  const kin1=0.5*rho*v1*v1, pot1=rho*g*h1;
+  const kin2=0.5*rho*v2*v2, pot2=rho*g*h2;
+  const C=P1+pot1+kin1;
+  const P2=C-pot2-kin2;
+
+  // barres de conservation (bande basse dédiée)
+  const bx=104, bw=W-bx-140;
+  ctx.fillStyle=GREY;ctx.font='600 12px system-ui';ctx.textAlign='left';
+  ctx.fillText('Énergie par volume — même total en A et B :',24,datum+16);
+  const tot=P1+pot1+kin1, s=bw/tot;
+  function bar(y,lab,P,pot,kin,neg){
+    ctx.fillStyle='#333';ctx.font='700 12px system-ui';ctx.textAlign='right';ctx.fillText(lab,bx-10,y+15);
+    let x=bx;
+    if(neg){
+      ctx.fillStyle=ORANGE;ctx.fillRect(x,y,pot*s,20);
+      ctx.fillStyle=GREEN;ctx.fillRect(x+pot*s,y,kin*s,20);
+      ctx.strokeStyle=RED;ctx.lineWidth=2;ctx.strokeRect(x,y,(pot+kin)*s,20);
+      ctx.fillStyle=RED;ctx.font='600 11px system-ui';ctx.textAlign='left';
+      ctx.fillText('P₂ < 0 → cavitation',x+(pot+kin)*s+8,y+15);
+      return;
+    }
+    ctx.fillStyle=BLUE;ctx.fillRect(x,y,P*s,20);x+=P*s;
+    ctx.fillStyle=ORANGE;ctx.fillRect(x,y,pot*s,20);x+=pot*s;
+    ctx.fillStyle=GREEN;ctx.fillRect(x,y,kin*s,20);
+  }
+  bar(datum+26,'A',P1,pot1,kin1,false);
+  bar(datum+52,'B',P2,pot2,kin2,P2<0);
+  // légende à DROITE des barres (plus de chevauchement)
+  const lx=bx+bw+16; let lyy=datum+26;
+  [['P',BLUE],['ρgh',ORANGE],['½ρv²',GREEN]].forEach(([t,c])=>{
+    ctx.fillStyle=c;ctx.fillRect(lx,lyy+2,11,11);
+    ctx.fillStyle='#444';ctx.font='600 12px system-ui';ctx.textAlign='left';ctx.fillText(t,lx+16,lyy+12);
+    lyy+=18;
+  });
+
+  document.getElementById('info').innerHTML=
+    '<b style="color:'+GREEN+'">v₁='+v1.toFixed(1)+' m/s</b> → <b style="color:'+RED+'">v₂='+v2.toFixed(1)+' m/s</b> ('+(v2>=v1?'plus vite':'plus lent')+', section '+(r2<r1?'↓':'↑')+') &nbsp;|&nbsp; '+
+    '<b style="color:'+BLUE_D+'">P₁=50.0 kPa → P₂='+(P2/1000).toFixed(1)+' kPa</b> &nbsp;|&nbsp; '+
+    (P2<P1?'P₁ > P₂':'P₁ < P₂')+' &nbsp;|&nbsp; monter (h₂↑) et accélérer (v₂↑) font <b>baisser P₂</b>';
+
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
